@@ -108,12 +108,28 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
 
   # write subj+experiment
   write.table(x,col.names=T,row.names=F, file=fn)
+
+  # put all fixations into the same class
+  x$event <- as.character(x$event)
+  x$event[grep('Fixation',x$event)] <- 'Fixation'
   
   # write out subject event file
   ddply(x,.(event),function(xe){
     fn<-sprintf('Y1/%s/%s/%s.1D',xe$subj[1],xe$exp[1],xe$event[1])
     createdir(fn)
+    # correct
     d <- xe$onset[xe$eventCorrect]
+    if(length(d)==0L) {d <- '*' }
+    sink(fn)
+    cat(d,"\n")
+    sink()
+
+    # done if fixation
+    if(xe$event[1] == 'Fixation') { return() }
+
+    # incorrect
+    fn<-sprintf('Y1/%s/%s/%s_incorrect.1D',xe$subj[1],xe$exp[1],xe$event[1])
+    d <- xe$onset[!xe$eventCorrect]
     if(length(d)==0L) {d <- '*' }
     sink(fn)
     cat(d,"\n")
