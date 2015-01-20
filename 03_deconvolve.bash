@@ -60,10 +60,15 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
    
    # make output directory if we need to
    outdir="$scriptdir/glm/$sid"
-   [ ! -d "$outdir" ] && mkdir "$outdir"
+   [ -d "$outdir" ] && rm -r $outdir
+   mkdir "$outdir"
 
-   # so 3dError and Decon are dumped into the correct spot
+   # just so everything is dumped in the correct spot
    cd $outdir
+
+   # and get a template brain in there
+   ln -s /Users/lncd/standard/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c.nii ./mni.nii
+
    # run glm
    3dDeconvolve \
       -overwrite \
@@ -76,9 +81,9 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
       -stim_times 2  $expstdir/MemL.1D 'BLOCK(3)' -stim_label 2 'memL' \
       -stim_times 3  $expstdir/MemR.1D 'BLOCK(3)' -stim_label 3 'memR' \
       \
-      -stim_times 4  $expstdir/TestC.1D 'TENT(0,18,6)' -stim_label 4 'testC' \
-      -stim_times 5  $expstdir/TestL.1D 'TENT(0,18,6)' -stim_label 5 'testL' \
-      -stim_times 6  $expstdir/TestR.1D 'TENT(0,18,6)' -stim_label 6 'testR' \
+      -stim_times 4  $expstdir/TestC.1D 'TENT(0,6,2)' -stim_label 4 'testC' \
+      -stim_times 5  $expstdir/TestL.1D 'TENT(0,6,2)' -stim_label 5 'testL' \
+      -stim_times 6  $expstdir/TestR.1D 'TENT(0,6,2)' -stim_label 6 'testR' \
       \
       -stim_file 7  $motfile'[0]' -stim_base 7  \
       -stim_file 8  $motfile'[1]' -stim_base 8  \
@@ -97,8 +102,8 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
       -float       \
       \
       -fout  -rout  -tout \
-      -bucket $outdir/${exp}_cond1_stats \
-      -iresp 1 $outdir/${exp}_iresp \
+      -bucket $outdir/${sid}_${long_id}_${exp}_1_stats \
+      -iresp 1 $outdir/${sid}_${long_id}_${exp}_1_iresp \
 
       # if we want to try to model incorrect, will have junk data for many though -- 1 or no incorrects frequent
       #\
