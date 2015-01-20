@@ -42,9 +42,12 @@ while(<>){
 
    # if this is the end of level 4
    if(/LogFrame End/) {
-      $a{'TestLeft.ACC'} = $a{'TestFront.ACC'} if  $a{'TestFront.ACC'};
-      $a{'TestCenter.ACC'} = $a{'TestSide.ACC'} if  $a{'TestFront.ACC'};
-      $a{'TestRight.ACC'} = $a{'TestBack.ACC'} if  $a{'TestFront.ACC'};
+      $a{'TestLeft.ACC'}   = $a{'TestFront.ACC'} if $a{'TestFront.ACC'};
+      $a{'TestCenter.ACC'} = $a{'TestSide.ACC'}  if $a{'TestSide.ACC'};
+      $a{'TestRight.ACC'}  = $a{'TestBack.ACC'}  if $a{'TestBack.ACC'};
+      $a{'TestLeft.RT'}    = $a{'TestFront.RT'}  if $a{'TestFront.RT'};
+      $a{'TestCenter.RT'}  = $a{'TestSide.RT'}   if $a{'TestSide.RT'};
+      $a{'TestRight.RT'}   = $a{'TestBack.RT'}   if $a{'TestBack.RT'};
       my @vals=map {$a{$_}||""} @columns;
       next if $#vals<0 ;
       if($level==3) {

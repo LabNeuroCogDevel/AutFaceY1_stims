@@ -140,7 +140,7 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
   x<-rbind(x,RTonset)
   x<-with(x, x[order(subj,date,exp,trial,event),]) 
   # remove test columns
-  x[,-c(grep('RT$',names(x)))]
+  x<-x[,-c(grep('RT$',names(x)))]
 
   
   # get file name
@@ -160,7 +160,7 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
 
   # so we dont create different files for correct and incorrect RT
   # make all RTs correct
-  x$event[x$event=='RT'] <- TRUE
+  x$evetCorrect[x$event=='RT'] <- TRUE
   
   # write out subject event file
   ddply(x,.(event),function(xe){
