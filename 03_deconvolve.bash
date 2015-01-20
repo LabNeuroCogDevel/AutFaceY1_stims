@@ -60,14 +60,14 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
    
    # make output directory if we need to
    outdir="$scriptdir/glm/$sid"
-   [ -d "$outdir" ] && rm -r $outdir
-   mkdir "$outdir"
+   [ ! -d "$outdir" ] && mkdir -p "$outdir"
 
    # just so everything is dumped in the correct spot
    cd $outdir
 
    # and get a template brain in there
-   ln -s /Users/lncd/standard/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c.nii ./mni.nii
+   [ ! -r mni.nii ] &&
+    ln -s /Users/lncd/standard/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c.nii ./mni.nii
 
    # run glm
    3dDeconvolve \
@@ -75,11 +75,11 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
       -input $t2 \
       -polort 2 \
       -local_times \
-      -num_stimts 12 \
+      -num_stimts 13 \
       \
-      -stim_times 1  $expstdir/MemC.1D 'BLOCK(0,3)' -stim_label 1 'memC' \
-      -stim_times 2  $expstdir/MemL.1D 'BLOCK(0,3)' -stim_label 2 'memL' \
-      -stim_times 3  $expstdir/MemR.1D 'BLOCK(0,3)' -stim_label 3 'memR' \
+      -stim_times 1  $expstdir/MemC.1D 'BLOCK(3,1)' -stim_label 1 'memC' \
+      -stim_times 2  $expstdir/MemL.1D 'BLOCK(3,1)' -stim_label 2 'memL' \
+      -stim_times 3  $expstdir/MemR.1D 'BLOCK(3,1)' -stim_label 3 'memR' \
       \
       -stim_times 4  $expstdir/TestC.1D 'TENT(0,6,2)' -stim_label 4 'testC' \
       -stim_times 5  $expstdir/TestL.1D 'TENT(0,6,2)' -stim_label 5 'testL' \
@@ -92,7 +92,7 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
       -stim_file 11 $motfile'[4]' -stim_base 11 \
       -stim_file 12 $motfile'[5]' -stim_base 12 \
       \
-      -stim_file 13 $expstdir/RT.1D 'BLOCK(0,1)' -stim_label 13 'RSP'\
+      -stim_times 13 $expstdir/RT.1D 'BLOCK(1,1)' -stim_label 13 'RSP'\
       \
       -num_glt 2 \
       -gltsym "SYM:.33*memC   +.33*memL   +.33*memR"   -glt_label 1 'mem' \
