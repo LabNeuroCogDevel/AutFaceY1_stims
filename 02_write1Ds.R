@@ -134,7 +134,7 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
   }
 
   # drop any Infs
-  RTonset<- RTonset[-!is.finite(RTonset$dur),]
+  RTonset<- RTonset[is.finite(RTonset$dur),]
 
   # add new onsets and sort again
   x<-rbind(x,RTonset)
