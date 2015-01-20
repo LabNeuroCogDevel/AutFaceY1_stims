@@ -12,7 +12,7 @@ df <- read.table('timing.txt',sep="\t",header=T)
 
 
 # subset to just the fixation columns
-df.fix <- df[,c(1:4,grep('Fix',names(df)))]
+df.fix <- df[,c(1:4,grep('Fix|RT',names(df)))]
 
 # accuracy
 # 0 -> none correct       | 4 -> rigth only
@@ -45,7 +45,10 @@ df.fix$acc <- df$TestLeft.ACC + 2*df$TestCenter.ACC + 4*df$TestRight.ACC
 # Test C -> 4500
 # Fix 4
 # Test R -> 4500
-eventorder=c( 'Fixation1' ,'MemL' ,'MemC' ,'MemR' ,'Fixation2' ,'TestL' ,'Fixation3' ,'TestC' ,'Fixation4','TestR')
+eventorder=c( 'Fixation1' ,'MemL' ,'MemC' ,'MemR' ,'Fixation2' ,
+'TestL.RT','TestL','Fixation3' ,
+'TestC.RT','TestC','Fixation4',
+'TestR.RT','TestR' )
 
 # grab only one subject (full timing, no repeats)
 #dfw<-df.fix[df.fix$subj==102,-c('subj','date')]
@@ -57,7 +60,14 @@ dfw$MemL <- dfw$MemC <- dfw$MemR <- 3000
 dfw$TestL <- dfw$TestC <- dfw$TestR <- 4500
 
 # put fixations from columns into rows (one time per row)
-dfm<-melt(dfw,id.vars=c('subj','date','exp','trial','acc'),variable.name="event",value.name='dur')
+
+# rename Test[LCR]*.RT to remove whatever is in the *
+testRTidxs <- grep('RT',names(dfw))
+names(dfw)[testRTidxs] <- gsub('eft|enter|ight','',names(dfw)[testRTidxs] )
+testRTs <- names(dfw)[testRTidxs]
+
+# reshape (melt) dfw so each event is its own row (useful for cumsum later)
+dfm<-melt(dfw,id.vars=c('subj','date','exp','trial','acc',testRTs),variable.name="event",value.name='dur')
 
 dfm$event <- factor(dfm$event, levels=eventorder)
 # sort by when it would happen
@@ -99,8 +109,40 @@ dfmo$eventCorrect <-  with(dfmo, findCorrect(event,acc) )
 
 # write out file per subj+experiement and file per subj+experiment+event (for correct only)
 df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
+
   # generate onsets
   x$onset <- cumsum(x$dur)/1000
+
+  # create RSP time event
+  dfx <- subset(x,grepl('Test',event))
+  #dfx$onset - dfx$dur + dfx[testype]
+
+  # not an eligant solution
+  RTonset <- dfx;
+  for(i in 1:nrow(dfx)){
+    testRTidx <- sprintf('%s.RT',dfx$event[i])
+    RT <- dfx[i,testRTidx]
+    if(RT==0) { RT <- Inf }
+
+    # set event type
+    RTonset$event[i] <- testRTidx
+    # set duration as RT time
+    RTonset$dur[i] <- RT 
+    # set onset as onset - total test duration + actual RT
+    RTonset$onset[i] <- 
+        (dfx$onset[i]*1000 - dfx$dur[i] + RT)/1000
+  }
+
+  # drop any Infs
+  RTonset<- RTonset[-!is.finite(RTonset$dur),]
+
+  # add new onsets and sort again
+  x<-rbind(x,RTonset)
+  x<-with(x, x[order(subj,date,exp,trial,event),]) 
+  # remove test columns
+  x[,-c(grep('RT$',names(x)))]
+
+  
   # get file name
   fn<-sprintf('Y1/%s/%s.txt',x$subj[1],x$exp[1])
   # and dirname
@@ -109,9 +151,16 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
   # write subj+experiment
   write.table(x,col.names=T,row.names=F, file=fn)
 
+
   # put all fixations into the same class
   x$event <- as.character(x$event)
   x$event[grep('Fixation',x$event)] <- 'Fixation'
+  # put all RTs into the same class
+  x$event[grep('RT$',x$event)] <- 'RT'
+
+  # so we dont create different files for correct and incorrect RT
+  # make all RTs correct
+  x$event[x$event=='RT'] <- TRUE
   
   # write out subject event file
   ddply(x,.(event),function(xe){
@@ -126,6 +175,7 @@ df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
 
     # done if fixation
     if(xe$event[1] == 'Fixation') { return() }
+    if(xe$event[1] == 'RT') { return() }
 
     # incorrect
     fn<-sprintf('Y1/%s/%s/%s_incorrect.1D',xe$subj[1],xe$exp[1],xe$event[1])
