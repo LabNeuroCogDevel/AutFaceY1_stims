@@ -1,0 +1,4 @@
+- C only
+- faces collapsed
+- face vs car contrast
+
