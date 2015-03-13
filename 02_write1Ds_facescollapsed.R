@@ -1,11 +1,10 @@
 #!/usr/bin/env Rscript
 
 library(reshape2)
-library(plyr)
 library(R.utils)
+library(plyr)
 library(dplyr)
-
-#library(r.utils)
+library(tidyr)
 
 
 # read in eprime log data
@@ -57,21 +56,19 @@ dfw<-df.fix
 dfw$MemL  <- dfw$MemC  <- dfw$MemR  <- 3000
 dfw$TestL <- dfw$TestC <- dfw$TestR <- 4500
 
-# put fixations from columns into rows (one time per row)
 
 # rename Test[LCR]*.RT to remove whatever is in the *
 testRTidxs <- grep('RT',names(dfw))
 names(dfw)[testRTidxs] <- gsub('eft|enter|ight','',names(dfw)[testRTidxs] )
 testRTs <- names(dfw)[testRTidxs]
 
-# reshape (melt) dfw so each event is its own row (useful for cumsum later)
+# reshape (melt) dfw so each event is its own row (useful for onset=cumsum later)
 dfm<-melt(dfw,id.vars=c('subj','date','exp','trial','acc',testRTs),variable.name="event",value.name='dur')
 
+# make events a factor so we can arrange/order them
 dfm$event <- factor(dfm$event, levels=eventorder)
 # sort by when it would happen
 dfmo <-with(dfm, dfm[order(subj,date,exp,trial,event),]) 
-# score based on test event
-sideOrder <- c('L','C','R');
 
 # use event name (ending in L C or R) to indentify the index
 # use bit ops to see if that event was answered correctly
@@ -90,100 +87,146 @@ findCorrect <- function(event,acc) {
   val    <- substr(strrep,idx.nan,idx.nan)
   return( as.numeric(val)==1 | is.na(val) ) 
 }
-# testing for findCorrect
-# all( ! findCorrect(c('L','L','L','L'),c(0,2,4,6)) )
-# all( findCorrect(c('C','C','C','C'),c(2,3,6)) )
 
 
 # given a file name, make sure a directory exists
 createdir<-function(fn) {
   dn<-dirname(fn);
   # create folder if dne
-  if( ! file.exists(dn) ){ dir.create(dn) }
+  if( ! file.exists(dn) ){ 
+    if( ! file.exists(dirname(dn)) ){ 
+     createdir(dn)
+    }
+    dir.create(dn) 
+  }
 }
+
+# given a df (with only one subj, exp, and event
+write1D <- function(df,correct=1,suffix="1D/correct") {
+  sexep <- lapply(FUN=as.character, df[ 1, c('subj','exp','event') ]  )
+  if(df$subj[1]  != df$subj [ nrow(df) ] ||
+     df$exp[1]   != df$exp  [ nrow(df) ] ||
+     df$event[1] != df$event[ nrow(df) ])
+       warning('making 1d file for df with different subj exp or event names!')
+
+  fn <- do.call(sprintf, c( "Y1_%s/%s/%s/%s.1D",suffix,sexep) )
+
+  # if we dont care (-1) we get all rows
+  # if we want incorrect (0) we want not correct
+  # otherwise only use correct trials (rows)
+  idxs <- ( function() {
+    if(correct <0) return(1:nrow(df))
+    if(correct==0) return(!df$eventCorrect )
+    return(df$eventCorrect)
+  })()
+
+  # get onsets, * if none
+  onsets <- df$onset[idxs]
+  if(length(onsets)==0L) {onsets <- '*' }
+
+  # write to file
+  createdir(fn)
+  try((function(){
+     sink(fn)
+     cat(onsets,"\n")
+  })())
+  sink()
+
+}
+
 
 # list if event should be included (based on correct response)
 dfmo$eventCorrect <-  with(dfmo, findCorrect(event,acc) )
+# or as dplyr
+#dfmo <- dfmo %>% mutate(eventCorrect = findCorrect(event,acc))
 
-# write out file per subj+experiement and file per subj+experiment+event (for correct only)
-df.onsets <- ddply(dfmo,.(subj,date, exp), function(x) {
+#####
 
-  # generate onsets
-  x$onset <- cumsum(x$dur)/1000
-
-  # create RSP time event
-  dfx <- subset(x,grepl('Test',event))
-  #dfx$onset - dfx$dur + dfx[testype]
-
-  # not an eligant solution
-  RTonset <- dfx;
-  for(i in 1:nrow(dfx)){
-    testRTidx <- sprintf('%s.RT',dfx$event[i])
-    RT <- dfx[i,testRTidx]
-    if(RT==0) { RT <- Inf }
-
-    # set event type
-    RTonset$event[i] <- testRTidx
-    # set duration as RT time
-    RTonset$dur[i] <- RT 
-    # set onset as onset - total test duration + actual RT
-    RTonset$onset[i] <- 
-        (dfx$onset[i]*1000 - dfx$dur[i] + RT)/1000
-  }
-
-  # drop any Infs
-  RTonset<- RTonset[is.finite(RTonset$dur),]
-
-  # add new onsets and sort again
-  x<-rbind(x,RTonset)
-  x<-with(x, x[order(subj,date,exp,trial,event),]) 
-  # remove test columns
-  x<-x[,-c(grep('RT$',names(x)))]
-
-  
-  # get file name
-  fn<-sprintf('Y1/%s/%s.txt',x$subj[1],x$exp[1])
-  # and dirname
-  createdir(fn)
-
-  # write subj+experiment
-  write.table(x,col.names=T,row.names=F, file=fn)
+# get onset of each event
+df.onsets <- dfmo %>% 
+     # make sure we are sorted by trial and event
+     arrange(subj,date,exp,trial,event) %>%
+     # we want to look accross runs
+     group_by(subj,date,exp) %>% 
+     # use all events to build onsets
+     mutate(onset=(cumsum(dur)-dur)/1000) 
 
 
-  # put all fixations into the same class
-  x$event <- as.character(x$event)
-  x$event[grep('Fixation',x$event)] <- 'Fixation'
-  # put all RTs into the same class
-  x$event[grep('RT$',x$event)] <- 'RT'
+onsets.small <- df.onsets %>%
+      # truncate num of columns to just what's needed
+      select(subj,date,exp,trial,event,eventCorrect,onset) %>% 
 
-  # so we dont create different files for correct and incorrect RT
-  # make all RTs correct
-  x$evetCorrect[x$event=='RT'] <- TRUE
-  
-  # write out subject event file
-  ddply(x,.(event),function(xe){
-    fn<-sprintf('Y1/%s/%s/%s.1D',xe$subj[1],xe$exp[1],xe$event[1])
-    createdir(fn)
-    # correct
-    d <- xe$onset[xe$eventCorrect]
-    if(length(d)==0L) {d <- '*' }
-    sink(fn)
-    cat(d,"\n")
-    sink()
+      # collapse accross Mem (e.g. MemC -> 'Mem')
+      mutate(event=gsub('Mem.*','Mem',as.character(event))) %>% 
+      #   the onlything not grouped is is onset & correct
+      group_by(subj,date,exp,trial,event) %>%
+      #   get smallest onset, all must be correct to be correct
+      summarise(onset=min(onset),eventCorrect=all(eventCorrect)) %>%
 
-    # done if fixation
-    if(xe$event[1] == 'Fixation') { return() }
-    if(xe$event[1] == 'RT') { return() }
+      # make all fixations the same event (e.g. Fixation1 -> Fixation)
+      mutate(event=gsub('\\d$','',as.character(event))) 
 
-    # incorrect
-    fn<-sprintf('Y1/%s/%s/%s_incorrect.1D',xe$subj[1],xe$exp[1],xe$event[1])
-    d <- xe$onset[!xe$eventCorrect]
-    if(length(d)==0L) {d <- '*' }
-    sink(fn)
-    cat(d,"\n")
-    sink()
-  })
-  
-  return(x)
-})
 
+# memory test events have response too
+# let's get those
+responses.small <- df.onsets %>%
+     # grab only test events
+     filter(grepl('Test',event)) %>%
+     # a row for each Test[LCR].RT 
+     gather(RTt,RT,TestL.RT,TestC.RT,TestR.RT) %>%
+     # remove rows where RTtype doesn't match event
+     filter(sprintf('%s.RT',event)==RTt) %>%
+     # make sure we are sorted
+     arrange(subj,date,exp,trial,onset) %>%
+     # response is onset+RT
+     mutate(response= onset + RT/1000) %>% 
+     # set even to response and onset to response onset
+     mutate(onset=response,event='response') %>%
+     # select only the columns we need
+     select(subj,date,exp,trial,event,eventCorrect,onset)
+
+
+all.small <- rbind(onsets.small,responses.small) %>% 
+     ungroup() %>%
+     arrange(subj,date,exp,trial,onset) 
+
+
+# write out all to a 1D file
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,1,'1D/correct') )
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,0,'1D/incorrect') )
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,-1,'1D/all') )
+
+# Histogram of the totally correct responses by group and exp
+# see also
+# perl -slane 'print $#F+1 if ! /\*/' Y1 <- 1D/correct/2*/CMFT/Mem.1D |Rio -ne 'sum(df$V1)'
+dfw %>% 
+ group_by(subj,date,exp,acc) %>%
+  mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
+  filter(acc==7) %>%  # 7 means all correct (1 is only L, 2 is only C, 3 is L+C, 5 L+R)
+  ggplot(aes(x=exp,fill=group)) + 
+  geom_histogram(position='dodge')+
+  theme_bw() + ggtitle('Full correct Trial')
+
+
+#PLOT: how many correct/incorrect trials are there
+corrplot <- dfw %>% 
+ group_by(subj,date,exp,acc) %>%
+  mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
+  mutate(accLab=cut(acc,c(-1,1,6,8),labels=c("wrong","okay","perfect")) ) %>%
+  ggplot(aes(x=exp,fill=accLab)) + 
+  geom_histogram(position='stack')+ facet_wrap(~group) +
+  theme_bw() + ggtitle('Mem+Test Trial correctness')
+
+print(corrplot)
+ 
+#PLOT: accuracy (std)
+accplot <- dfw %>% 
+ mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
+ group_by(subj,date,exp,group) %>%
+ summarise(totacc=sum(acc==7)/n() ) %>%
+ ggplot(aes(x=exp,y=totacc, fill=group)) + 
+  geom_boxplot() +
+  #geom_point(aes(color=group),alpha=.4, position='dodge') +
+  theme_bw() + ggtitle('Mem+Test Trial correctness')
+
+print(accplot)
