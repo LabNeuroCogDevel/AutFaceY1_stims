@@ -6,8 +6,17 @@ library(plyr)
 library(dplyr)
 library(tidyr)
 
+####################
+# reads in timing.txt
+# makes
+#  dfw       -- wide: row per 3 tests (full trial), for plotting
+#  df.onsets -- long: row per event w/event onsets, eventCorrect T/F for specific Mem&Test (from acc), for writing 1Ds
+# writse
+#  1D/ directories
+
 
 # read in eprime log data
+#   timig.txt created by perl script (parse.pl) over all eprime log files
 df <- read.table('timing.txt',sep="\t",header=T)
 #   subj	date	        exp     	trial	
 #   FaceLeft	FaceCenter	FaceRight	
@@ -70,77 +79,17 @@ dfm$event <- factor(dfm$event, levels=eventorder)
 # sort by when it would happen
 dfmo <-with(dfm, dfm[order(subj,date,exp,trial,event),]) 
 
-# use event name (ending in L C or R) to indentify the index
-# use bit ops to see if that event was answered correctly
-findCorrect <- function(event,acc) {
-  # position 1 in str is last postion as number, so reverse
-  sideOrder <- rev(c('L','C','R'));
-
-  # find index of event, 1=left ,2=center,3=right
-  idx<-lapply( as.character(event),  function(x){    a<-which( substr( x,nchar(x),nchar(x) ) == sideOrder )  } )
-  # if empty, make NaN
-  idx.nan<-unlist(ifelse(idx,idx,NaN))
-
-  binrep <- intToBin(acc);
-  # add padding incase rep is less than 3 digits long
-  strrep <- sprintf("%03s",binrep);
-  val    <- substr(strrep,idx.nan,idx.nan)
-  return( as.numeric(val)==1 | is.na(val) ) 
-}
-
-
-# given a file name, make sure a directory exists
-createdir<-function(fn) {
-  dn<-dirname(fn);
-  # create folder if dne
-  if( ! file.exists(dn) ){ 
-    if( ! file.exists(dirname(dn)) ){ 
-     createdir(dn)
-    }
-    dir.create(dn) 
-  }
-}
-
-# given a df (with only one subj, exp, and event
-write1D <- function(df,correct=1,suffix="1D/correct") {
-  sexep <- lapply(FUN=as.character, df[ 1, c('subj','exp','event') ]  )
-  if(df$subj[1]  != df$subj [ nrow(df) ] ||
-     df$exp[1]   != df$exp  [ nrow(df) ] ||
-     df$event[1] != df$event[ nrow(df) ])
-       warning('making 1d file for df with different subj exp or event names!')
-
-  fn <- do.call(sprintf, c( "Y1_%s/%s/%s/%s.1D",suffix,sexep) )
-
-  # if we dont care (-1) we get all rows
-  # if we want incorrect (0) we want not correct
-  # otherwise only use correct trials (rows)
-  idxs <- ( function() {
-    if(correct <0) return(1:nrow(df))
-    if(correct==0) return(!df$eventCorrect )
-    return(df$eventCorrect)
-  })()
-
-  # get onsets, * if none
-  onsets <- df$onset[idxs]
-  if(length(onsets)==0L) {onsets <- '*' }
-
-  # write to file
-  createdir(fn)
-  try((function(){
-     sink(fn)
-     cat(onsets,"\n")
-  })())
-  sink()
-
-}
-
+####
+# load functions
+#  findCorrect, write1D, createdir 
+source('writeFuncs.R')
+####
 
 # list if event should be included (based on correct response)
 dfmo$eventCorrect <-  with(dfmo, findCorrect(event,acc) )
 # or as dplyr
 #dfmo <- dfmo %>% mutate(eventCorrect = findCorrect(event,acc))
 
-#####
 
 # get onset of each event
 df.onsets <- dfmo %>% 
@@ -151,6 +100,33 @@ df.onsets <- dfmo %>%
      # use all events to build onsets
      mutate(onset=(cumsum(dur)-dur)/1000) 
 
+##########
+# NOW HAVE:
+# dfw       -- wide: row per 3 tests (full trial) 
+# df.onsets -- long: row per event w/event onsets, eventCorrect T/F for specific Mem&Test (from acc)
+
+#########
+# Make 1D files
+#########
+
+
+##### Get only Center ####
+onsets.Center <- df.onsets %>%
+    # grab only the center events
+    filter(grepl('.C',event)) %>%
+    # make output easier to see
+    select(-TestL.RT,-TestR.RT) %>%
+    # make sure we are sorted before writing 1D files
+    arrange(subj,date,exp,trial,onset) 
+
+# write out all to a 1D file
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,1,'1D_Center/correct') )
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,0,'1D_Center/incorrect') )
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,-1,'1D_Center/all') )
+
+
+
+##### Collapse Memory #####
 
 onsets.small <- df.onsets %>%
       # truncate num of columns to just what's needed
@@ -196,37 +172,5 @@ ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,1,'1D/correct') )
 ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,0,'1D/incorrect') )
 ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,-1,'1D/all') )
 
-# Histogram of the totally correct responses by group and exp
-# see also
-# perl -slane 'print $#F+1 if ! /\*/' Y1 <- 1D/correct/2*/CMFT/Mem.1D |Rio -ne 'sum(df$V1)'
-dfw %>% 
- group_by(subj,date,exp,acc) %>%
-  mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
-  filter(acc==7) %>%  # 7 means all correct (1 is only L, 2 is only C, 3 is L+C, 5 L+R)
-  ggplot(aes(x=exp,fill=group)) + 
-  geom_histogram(position='dodge')+
-  theme_bw() + ggtitle('Full correct Trial')
 
-
-#PLOT: how many correct/incorrect trials are there
-corrplot <- dfw %>% 
- group_by(subj,date,exp,acc) %>%
-  mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
-  mutate(accLab=cut(acc,c(-1,1,6,8),labels=c("wrong","okay","perfect")) ) %>%
-  ggplot(aes(x=exp,fill=accLab)) + 
-  geom_histogram(position='stack')+ facet_wrap(~group) +
-  theme_bw() + ggtitle('Mem+Test Trial correctness')
-
-print(corrplot)
- 
-#PLOT: accuracy (std)
-accplot <- dfw %>% 
- mutate(group=ifelse(as.numeric(subj)>=200,'200','100')) %>%
- group_by(subj,date,exp,group) %>%
- summarise(totacc=sum(acc==7)/n() ) %>%
- ggplot(aes(x=exp,y=totacc, fill=group)) + 
-  geom_boxplot() +
-  #geom_point(aes(color=group),alpha=.4, position='dodge') +
-  theme_bw() + ggtitle('Mem+Test Trial correctness')
-
-print(accplot)
+source('Rplots/behaveplot.R')
