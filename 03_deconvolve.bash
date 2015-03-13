@@ -11,10 +11,11 @@ datadir='/Volumes/TX/Autism_Faces/subject_data/'
 
 # make output directory
 scriptdir=$(cd $(dirname $0);pwd)
-
+[ -z "$1" ] && echo "need first argument to be stimdir, where to find 1Ds and GLM.src.bash" && exit 1
+stimdir="$1"
 # check on stimdir 
-stimdir="$scriptdir/Y1/"
-[ ! -d $stimdir ] && echo "cannot find stimdir! ($stimdir)" && exit 1
+[ ! -d $stimdir ] && stimdir="$scriptdir/$stimdir/"
+[ ! -d $stimdir ] && echo "cannot find stimdir! ($1 or $stimdir)" && exit 1
 
 # make dir to store output, if we need one
 [ ! -d $scriptdir/glm ] && mkdir $scriptdir/glm
@@ -42,7 +43,7 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
    [ ! -r "$t2" ] && echo "$sid $long_id $exp: missing t2 ($t2)" && continue
 
    # check we have a stimdir for this exp
-   expstdir="$stimdir/$sid/$EPname"
+   expstdir="$stimdir/correct/$sid/$EPname"
    [ ! -d "$expstdir" ] && echo "$sid $long_id $exp: no stimdir! ($expstdir)" && continue
 
 
@@ -59,7 +60,8 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
 
    
    # make output directory if we need to
-   outdir="$scriptdir/glm/$sid"
+   # based on stimdir
+   outdir="$scriptdir/glm/$(basename $stimdir 1D)/$sid"
    [ ! -d "$outdir" ] && mkdir -p "$outdir"
 
    # just so everything is dumped in the correct spot
@@ -69,43 +71,48 @@ for expdir in $datadir/*/experiment1/{faces_usa,faces_aus,cars}; do
    [ ! -r mni.nii ] &&
     ln -s /Users/lncd/standard/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c.nii ./mni.nii
 
+   # 20150313 WF -- b/c we may have a few contrasts
+   #GLM (3dDeconvolve) command stored in $stimdir
+   # as GLM.src.bash
+   source $stimdir/GLM.src.bash
+   #
    # run glm
-   3dDeconvolve \
-      -overwrite \
-      -input $t2 \
-      -polort 2 \
-      -local_times \
-      -num_stimts 13 \
-      \
-      -stim_times 1  $expstdir/MemC.1D 'BLOCK(3,1)' -stim_label 1 'memC' \
-      -stim_times 2  $expstdir/MemL.1D 'BLOCK(3,1)' -stim_label 2 'memL' \
-      -stim_times 3  $expstdir/MemR.1D 'BLOCK(3,1)' -stim_label 3 'memR' \
-      \
-      -stim_times 4  $expstdir/TestC.1D 'TENT(0,6,2)' -stim_label 4 'testC' \
-      -stim_times 5  $expstdir/TestL.1D 'TENT(0,6,2)' -stim_label 5 'testL' \
-      -stim_times 6  $expstdir/TestR.1D 'TENT(0,6,2)' -stim_label 6 'testR' \
-      \
-      -stim_file 7  $motfile'[0]' -stim_base 7  \
-      -stim_file 8  $motfile'[1]' -stim_base 8  \
-      -stim_file 9  $motfile'[2]' -stim_base 9  \
-      -stim_file 10 $motfile'[3]' -stim_base 10 \
-      -stim_file 11 $motfile'[4]' -stim_base 11 \
-      -stim_file 12 $motfile'[5]' -stim_base 12 \
-      \
-      -stim_times 13 $expstdir/RT.1D 'BLOCK(1,1)' -stim_label 13 'RSP'\
-      \
-      -num_glt 2 \
-      -gltsym "SYM:.33*memC   +.33*memL   +.33*memR"   -glt_label 1 'mem' \
-      -gltsym "SYM:.33*testC  +.33*testL  +.33*testR"  -glt_label 2 'test' \
-      \
-      -jobs 8 \
-      -allzero_OK \
-      -GOFORIT 100 \
-      -float       \
-      \
-      -fout  -rout  -tout \
-      -bucket $outdir/${sid}_${long_id}_${exp}_1_stats \
-      -iresp 1 $outdir/${sid}_${long_id}_${exp}_1_iresp \
+   ## 3dDeconvolve \
+   ##    -overwrite \
+   ##    -input $t2 \
+   ##    -polort 2 \
+   ##    -local_times \
+   ##    -num_stimts 13 \
+   ##    \
+   ##    -stim_times 1  $expstdir/MemC.1D 'BLOCK(3,1)' -stim_label 1 'memC' \
+   ##    -stim_times 2  $expstdir/MemL.1D 'BLOCK(3,1)' -stim_label 2 'memL' \
+   ##    -stim_times 3  $expstdir/MemR.1D 'BLOCK(3,1)' -stim_label 3 'memR' \
+   ##    \
+   ##    -stim_times 4  $expstdir/TestC.1D 'TENT(0,6,2)' -stim_label 4 'testC' \
+   ##    -stim_times 5  $expstdir/TestL.1D 'TENT(0,6,2)' -stim_label 5 'testL' \
+   ##    -stim_times 6  $expstdir/TestR.1D 'TENT(0,6,2)' -stim_label 6 'testR' \
+   ##    \
+   ##    -stim_file 7  $motfile'[0]' -stim_base 7  \
+   ##    -stim_file 8  $motfile'[1]' -stim_base 8  \
+   ##    -stim_file 9  $motfile'[2]' -stim_base 9  \
+   ##    -stim_file 10 $motfile'[3]' -stim_base 10 \
+   ##    -stim_file 11 $motfile'[4]' -stim_base 11 \
+   ##    -stim_file 12 $motfile'[5]' -stim_base 12 \
+   ##    \
+   ##    -stim_times 13 $expstdir/RT.1D 'BLOCK(1,1)' -stim_label 13 'RSP'\
+   ##    \
+   ##    -num_glt 2 \
+   ##    -gltsym "SYM:.33*memC   +.33*memL   +.33*memR"   -glt_label 1 'mem' \
+   ##    -gltsym "SYM:.33*testC  +.33*testL  +.33*testR"  -glt_label 2 'test' \
+   ##    \
+   ##    -jobs 8 \
+   ##    -allzero_OK \
+   ##    -GOFORIT 100 \
+   ##    -float       \
+   ##    \
+   ##    -fout  -rout  -tout \
+   ##    -bucket $outdir/${sid}_${long_id}_${exp}_1_stats \
+   ##    -iresp 1 $outdir/${sid}_${long_id}_${exp}_1_iresp \
 
       # if we want to try to model incorrect, will have junk data for many though -- 1 or no incorrects frequent
       #\

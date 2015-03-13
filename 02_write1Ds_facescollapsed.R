@@ -168,9 +168,9 @@ all.small <- rbind(onsets.small,responses.small) %>%
 
 
 # write out all to a 1D file
-ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,1,'1D/correct') )
-ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,0,'1D/incorrect') )
-ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,-1,'1D/all') )
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,1,'Y1_AllMem_1D/correct') )
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,0,'Y1_AllMem_1D/incorrect') )
+ddply(all.small,.(subj,date,exp,event),function(x) write1D(x,-1,'Y1_AllMem_1D/all') )
 
 
 source('Rplots/behaveplot.R')
