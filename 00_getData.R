@@ -8,4 +8,4 @@ afd.out <- afd %>%
           ageg  = factor(AgeGroup1kid2teen3adult,levels=1:3,labels=c('Child','Teen','Adult'))
          ) %>%
    select(-Group1td2aut, -AgeGroup1kid2teen3adult)
-write.table(afd.out,sep="\t",row.names=F,file="demog.txt",quote=F)
+write.table(afd.out,sep="\t",row.names=F,file="txt/demog.txt",quote=F)
