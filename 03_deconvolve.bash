@@ -16,6 +16,7 @@ stimdir="$1"
 # check on stimdir 
 [ ! -d $stimdir ] && stimdir="$scriptdir/$stimdir/"
 [ ! -d $stimdir ] && echo "cannot find stimdir! ($1 or $stimdir)" && exit 1
+stimdir=$(cd $stimdir;pwd)
 
 # make dir to store output, if we need one
 [ ! -d $scriptdir/glm ] && mkdir $scriptdir/glm

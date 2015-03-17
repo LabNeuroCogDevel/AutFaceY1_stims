@@ -17,6 +17,9 @@
       -stim_file 7 $motfile'[4]' -stim_base 7 \
       -stim_file 8 $motfile'[5]' -stim_base 8 \
       \
+      -num_glt 1 \
+      -gltsym "SYM:memC -testC"  -glt_label 1 'mem_m_testC' \
+      \
       -jobs 8 \
       -allzero_OK \
       -GOFORIT 100 \

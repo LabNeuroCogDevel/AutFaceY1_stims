@@ -120,9 +120,9 @@ onsets.Center <- df.onsets %>%
     arrange(subj,date,exp,trial,onset) 
 
 # write out all to a 1D file
-ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,1,'1D_Center/correct') )
-ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,0,'1D_Center/incorrect') )
-ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,-1,'1D_Center/all') )
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,1,'Y1_Center/correct') )
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,0,'Y1_Center/incorrect') )
+ddply(onsets.Center,.(subj,date,exp,event),function(x) write1D(x,-1,'Y1_Center/all') )
 
 
 
