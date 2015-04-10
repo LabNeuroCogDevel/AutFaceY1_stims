@@ -13,7 +13,7 @@ mni="$HOME/standard/mni_icbm152_nlin_asym_09c/mni_icbm152_gm_tal_nlin_asym_09c_3
 cd $(dirname $0)
 
 for f in $datadir/byID/*/experiment1/*faces*/subject_mask.nii.gz; do 
-  subjface=$(echo $f|cut -d/ -f7,9|tr / ' ') 
+  subjface=$(echo $f|cut -d/ -f8,10|tr / ' ') 
   nv=$(3dBrickStat -non-zero -count $f)
   echo $subjface $nv; 
 done > txt/maskVoxelCount.txt
